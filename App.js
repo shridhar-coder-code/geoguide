@@ -17,13 +17,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFonts, DMSans_400Regular, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 const { width, height } = Dimensions.get('window');
 const SPLASH_DURATION = 2500;
 const Tab = createBottomTabNavigator();
+const LocationStack = createNativeStackNavigator();
 
 // ==========================================
-// MOCK DATA (DECLARED BEFORE COMPONENTS)
+// MOCK DATA
 // ==========================================
 const MOCK_BRIEFING = {
   city: 'Mysuru',
@@ -35,6 +37,7 @@ const MOCK_BRIEFING = {
   sources: [
     { title: 'Place Information', source: 'source: place_kb (s. 1)' },
     { title: 'Top Attractions', source: 'source: poi_facts_kb (p. 3)' },
+    { title: 'Events & Festivals', source: 'source: events_festivals (row 12)' },
   ],
 };
 
@@ -47,7 +50,7 @@ const CITIES_DATA = [
     id: '1',
     name: 'Mysuru',
     state: 'Karnataka',
-    image: require('./assets/mysuru.jpg'), 
+    image: require('./assets/mysuru.jpg'),
   },
   {
     id: '2',
@@ -115,6 +118,18 @@ const NEARBY_PLACES_DATA = [
 ];
 
 // ==========================================
+// LOCATION STACK NAVIGATOR (FIXES DATE PICKER FLOW)
+// ==========================================
+function LocationStackNavigator() {
+  return (
+    <LocationStack.Navigator screenOptions={{ headerShown: false }}>
+      <LocationStack.Screen name="HomeScreen" component={HomeScreen} />
+      <LocationStack.Screen name="DateSelectScreen" component={DateSelectScreen} />
+    </LocationStack.Navigator>
+  );
+}
+
+// ==========================================
 // MAIN APP COMPONENT
 // ==========================================
 export default function App() {
@@ -171,7 +186,7 @@ export default function App() {
             },
           })}
         >
-          <Tab.Screen name="Location" component={HomeScreen} />
+          <Tab.Screen name="Location" component={LocationStackNavigator} />
           <Tab.Screen name="Briefing" component={BriefingScreen} />
           <Tab.Screen name="Nearby" component={PlacesScreen} />
           <Tab.Screen name="Hotels" component={HotelsScreen} />
@@ -198,6 +213,8 @@ export default function App() {
 // ==========================================
 // SCREENS
 // ==========================================
+
+// 1. LOCATION / HOME SCREEN
 function HomeScreen({ navigation }) {
   return (
     <ScrollView style={styles.screenPadding} showsVerticalScrollIndicator={false}>
@@ -205,22 +222,25 @@ function HomeScreen({ navigation }) {
       <Text style={styles.subtitle}>Select a location to get real-time grounded briefing.</Text>
 
       {/* GPS BUTTON */}
-      <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('Briefing')}>
+      <TouchableOpacity
+        style={styles.primaryButton}
+        onPress={() => navigation.navigate('DateSelectScreen', { city: 'Mysuru (GPS)' })}
+      >
         <Ionicons name="navigate-circle" size={22} color="#FFF" style={{ marginRight: 8 }} />
         <Text style={styles.primaryButtonText}>Use Current Location</Text>
       </TouchableOpacity>
 
       <Text style={styles.sectionHeader}>Demo Hackathon Cities</Text>
 
-      {/* CITY CARDS WITH IMAGES */}
+      {/* CITY CARDS -> NAVIGATE TO DATE SELECT SCREEN */}
       {CITIES_DATA.map((city) => (
         <TouchableOpacity
           key={city.id}
           style={styles.cityCardWithImage}
           activeOpacity={0.85}
-          onPress={() => navigation.navigate('Briefing')}
+          onPress={() => navigation.navigate('DateSelectScreen', { city: city.name })}
         >
-          <Image source={city.image} style={styles.cityImage} resizeMode="stretch" />
+          <Image source={city.image} style={styles.cityImage} resizeMode="cover" />
           <View style={styles.cityCardInfo}>
             <View>
               <Text style={styles.cityCardName}>{city.name}</Text>
@@ -236,12 +256,99 @@ function HomeScreen({ navigation }) {
   );
 }
 
-function BriefingScreen() {
+// 2. MANUAL DATE SELECTOR SCREEN
+function DateSelectScreen({ route, navigation }) {
+  const selectedCity = route.params?.city || 'Mysuru';
+  const [selectedDay, setSelectedDay] = useState(24);
+
+  const daysInMonth = Array.from({ length: 30 }, (_, i) => i + 1);
+
+  return (
+    <View style={styles.dateScreenContainer}>
+      <Text style={styles.dateScreenTitle}>Select a Date</Text>
+      <Text style={styles.dateScreenSubtitle}>
+        Get date-wise travel insights including events, weather, and seasonal tips for {selectedCity}.
+      </Text>
+
+      {/* CALENDAR CARD */}
+      <View style={styles.calendarCard}>
+        <View style={styles.calendarHeader}>
+          <TouchableOpacity><Ionicons name="chevron-back" size={20} color="#0D1B2A" /></TouchableOpacity>
+          <Text style={styles.monthText}>September 2026</Text>
+          <TouchableOpacity><Ionicons name="chevron-forward" size={20} color="#0D1B2A" /></TouchableOpacity>
+        </View>
+
+        <View style={styles.weekDaysRow}>
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+            <Text key={day} style={styles.weekDayText}>{day}</Text>
+          ))}
+        </View>
+
+        <View style={styles.daysGrid}>
+          {daysInMonth.map((day) => {
+            const isSelected = day === selectedDay;
+            return (
+              <TouchableOpacity
+                key={day}
+                style={[styles.dayCell, isSelected && styles.selectedDayCell]}
+                onPress={() => setSelectedDay(day)}
+              >
+                <Text style={[styles.dayText, isSelected && styles.selectedDayText]}>
+                  {day}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* SELECTED DATE BADGE */}
+      <View style={styles.selectedDateBadge}>
+        <Ionicons name="calendar" size={24} color="#1E88E5" style={{ marginRight: 12 }} />
+        <View>
+          <Text style={styles.selectedDateLabel}>Selected Date</Text>
+          <Text style={styles.selectedDateValue}>Thu, {selectedDay} Sep 2026</Text>
+        </View>
+      </View>
+
+      {/* CONTINUE BUTTON -> NAVIGATES TO BRIEFING TAB WITH DATA */}
+      <TouchableOpacity
+        style={styles.continueButton}
+        onPress={() =>
+          navigation.navigate('Briefing', {
+            city: selectedCity,
+            date: `Thu, ${selectedDay} Sep 2026`,
+          })
+        }
+      >
+        <Text style={styles.continueButtonText}>Continue</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// 3. AI TRAVEL BRIEFING SCREEN
+function BriefingScreen({ route, navigation }) {
+  const city = route?.params?.city || 'Mysuru';
+  const date = route?.params?.date || 'Thu, 24 Sep 2026';
+
   return (
     <ScrollView style={styles.screenPadding}>
       <View style={styles.card}>
-        <Text style={styles.cityTitle}>Mysuru</Text>
-        <Text style={styles.dateText}>{MOCK_BRIEFING.date}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View>
+            <Text style={styles.cityTitle}>{city}</Text>
+            <Text style={styles.dateText}>{date}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.editDateBtn}
+            onPress={() => navigation.navigate('Location', { screen: 'DateSelectScreen', params: { city: city } })}
+          >
+            <Ionicons name="calendar-outline" size={14} color="#1E88E5" />
+            <Text style={styles.editDateText}>Edit Date</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.weatherRow}>
           <Ionicons name="partly-sunny" size={36} color="#F57C00" />
@@ -254,18 +361,33 @@ function BriefingScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Grounded Briefing</Text>
-        <Text style={styles.bodyText}>{MOCK_BRIEFING.overview}</Text>
+        <Text style={styles.bodyText}>
+          Welcome to {city}! Based on our grounded knowledge base for {date}, {MOCK_BRIEFING.overview}
+        </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Verified Sources & Citations</Text>
+        {MOCK_BRIEFING.sources.map((src, index) => (
+          <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+            <View style={{ marginLeft: 8 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#212121' }}>{src.title}</Text>
+              <Text style={{ fontSize: 11, color: '#1E88E5', fontStyle: 'italic' }}>{src.source}</Text>
+            </View>
+          </View>
+        ))}
       </View>
     </ScrollView>
   );
 }
 
+// 4. NEARBY PLACES SCREEN
 function PlacesScreen() {
   const [selectedFilter, setSelectedFilter] = useState('All');
 
   return (
     <View style={styles.placesContainer}>
-      {/* SEARCH BAR & FILTER ICON */}
       <View style={styles.searchRow}>
         <View style={styles.searchBar}>
           <Ionicons name="search" size={18} color="#757575" style={{ marginRight: 8 }} />
@@ -280,7 +402,6 @@ function PlacesScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* HORIZONTAL CATEGORY PILLS */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
         {['All', 'Attractions', 'Temples', 'Gardens'].map((cat) => (
           <TouchableOpacity
@@ -298,19 +419,17 @@ function PlacesScreen() {
         ))}
       </ScrollView>
 
-      {/* PLACES LIST */}
       <FlatList
         data={NEARBY_PLACES_DATA}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
           <View style={styles.placeCard}>
-            {/* Direct Source Object Handling */}
             <Image source={item.image} style={styles.placeImage} resizeMode="cover" />
 
             <View style={styles.placeDetails}>
               <Text style={styles.placeName}>{item.name}</Text>
-              
+
               <View style={styles.ratingRow}>
                 <Ionicons name="star" size={14} color="#FFB300" />
                 <Text style={styles.ratingText}>{item.rating}</Text>
@@ -337,6 +456,7 @@ function PlacesScreen() {
   );
 }
 
+// 5. NEARBY HOTELS SCREEN
 function HotelsScreen() {
   return (
     <View style={styles.screenPadding}>
@@ -355,6 +475,7 @@ function HotelsScreen() {
   );
 }
 
+// 6. ASK AI CHAT SCREEN
 function ChatScreen() {
   const [messages, setMessages] = useState([{ id: '1', text: 'Hello! Ask me anything about Mysuru.' }]);
   const [text, setText] = useState('');
@@ -381,6 +502,131 @@ function ChatScreen() {
 // STYLES
 // ==========================================
 const styles = StyleSheet.create({
+  editDateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  editDateText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1E88E5',
+    marginLeft: 4,
+  },
+  dateScreenContainer: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+  },
+  dateScreenTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#0D1B2A',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  dateScreenSubtitle: {
+    fontSize: 13,
+    color: '#757575',
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  calendarCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  monthText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#0D1B2A',
+  },
+  weekDaysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 10,
+  },
+  weekDayText: {
+    width: 36,
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#9E9E9E',
+    fontWeight: '600',
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  dayCell: {
+    width: '14.28%',
+    height: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 2,
+    borderRadius: 19,
+  },
+  selectedDayCell: {
+    backgroundColor: '#0D1B2A',
+  },
+  dayText: {
+    fontSize: 14,
+    color: '#212121',
+  },
+  selectedDayText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  selectedDateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F7FA',
+    padding: 14,
+    borderRadius: 12,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: '#E8ECEF',
+  },
+  selectedDateLabel: {
+    fontSize: 11,
+    color: '#757575',
+  },
+  selectedDateValue: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#0D1B2A',
+  },
+  continueButton: {
+    backgroundColor: '#0D1B2A',
+    paddingVertical: 14,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  continueButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   splashOverlay: {
     position: 'absolute',
     top: 0,
@@ -412,8 +658,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: 'center',
   },
-
-  // CITY IMAGE CARD STYLES
   cityCardWithImage: {
     backgroundColor: '#FFF',
     borderRadius: 12,
@@ -448,8 +692,6 @@ const styles = StyleSheet.create({
     color: '#757575',
     marginTop: 2,
   },
-
-  // PLACES SCREEN STYLES
   placesContainer: {
     flex: 1,
     padding: 16,
